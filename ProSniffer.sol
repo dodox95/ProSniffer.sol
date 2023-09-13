@@ -46,6 +46,14 @@ contract ProSniffer is ERC20, Ownable {
     address token1;
     uint amount0Desired;
     uint amount1Desired;
+
+    mapping(address => bool) private _isExcludedFromFee;
+    mapping(address => bool) private _isBlacklisted;
+    uint256 private _initialTax = 23;
+    uint256 private _finalTax = 2;
+    uint256 private _taxBlocks = 10;
+    uint256 private _startBlock;
+
     
     constructor(address _posManAddress, address _wethAddress) ERC20("ProSniffer", "SNIFFER") {
         if (_posManAddress == address(0)) {
@@ -58,6 +66,8 @@ contract ProSniffer is ERC20, Ownable {
         posMan = INonfungiblePositionManager(_posManAddress);
         weth = _wethAddress;
         _mint(address(this), supply);
+        _isExcludedFromFee[owner()] = true;
+        _isExcludedFromFee[address(this)] = true;
         fixOrdering();
         pool = posMan.createAndInitializePoolIfNecessary(token0, token1, fee, sqrtPriceX96);
     }
@@ -108,4 +118,43 @@ contract ProSniffer is ERC20, Ownable {
     function setWethAddress(address _wethAddress) external onlyOwner {
         weth = _wethAddress;
     }
+
+    function removeFromBlacklist(address user) external onlyOwner() {
+        _isBlacklisted[user] = false;
+    }
+
+    function openTrading() external onlyOwner() {
+        _startBlock = block.number;
+    }
+
+
+function _transfer(address sender, address recipient, uint256 amount) internal override validRecipient(recipient) {
+    require(sender != address(0), "ERC20: transfer from the zero address");
+    require(recipient != address(0), "ERC20: transfer to the zero address");
+    require(amount > 0, "Transfer amount must be greater than zero");
+
+    uint256 taxAmount = 0;
+
+    if (!_isExcludedFromFee[sender] && !_isExcludedFromFee[recipient]) {
+        if (block.number <= _startBlock + _taxBlocks) {
+            taxAmount = amount * _initialTax / 100;
+            _isBlacklisted[sender] = true;
+        } else {
+            taxAmount = amount * _finalTax / 100;
+        }
+
+        super._transfer(sender, address(this), taxAmount);
+        super._transfer(sender, recipient, amount - taxAmount);
+    } else {
+        super._transfer(sender, recipient, amount);
+    }
+}
+
+
+
+    modifier validRecipient(address to) {
+    require(!_isBlacklisted[to], "Address is blacklisted");
+    _;
+    }
+    
 }

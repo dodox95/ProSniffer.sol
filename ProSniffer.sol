@@ -32,10 +32,11 @@ interface INonfungiblePositionManager {
     ) external payable returns (address pool);
 }
 
+
 contract ProSniffer is ERC20, Ownable {
     INonfungiblePositionManager public posMan;
     address public weth;
-    
+
     uint supply = 1_000_000 * 10 ** decimals();
     uint24 constant fee = 500;
     uint160 constant sqrtPriceX96 = 79228162514264337593543950336; // ~ 1:1
@@ -54,20 +55,20 @@ contract ProSniffer is ERC20, Ownable {
     uint256 private _taxBlocks = 10;
     uint256 private _startBlock;
 
-    
-constructor() ERC20("ProSniffer", "SNIFFER") {
-    address _posManAddress = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
-    address _wethAddress = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
+    bool public liquidityAdded = false; // New state variable
 
-    posMan = INonfungiblePositionManager(_posManAddress);
-    weth = _wethAddress;
-    _mint(address(this), supply);
-    _isExcludedFromFee[owner()] = true;
-    _isExcludedFromFee[address(this)] = true;
-    fixOrdering();
-    pool = posMan.createAndInitializePoolIfNecessary(token0, token1, fee, sqrtPriceX96);
-}
+    constructor() ERC20("ProSniffer", "SNIFFER") {
+        address _posManAddress = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
+        address _wethAddress = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
 
+        posMan = INonfungiblePositionManager(_posManAddress);
+        weth = _wethAddress;
+        _mint(address(this), supply);
+        _isExcludedFromFee[owner()] = true;
+        _isExcludedFromFee[address(this)] = true;
+        fixOrdering();
+        pool = posMan.createAndInitializePoolIfNecessary(token0, token1, fee, sqrtPriceX96);
+    }
 
     function addLiquidity() public onlyOwner {
         IERC20(address(this)).approve(address(posMan), supply);
@@ -84,6 +85,7 @@ constructor() ERC20("ProSniffer", "SNIFFER") {
             recipient: address(this),
             deadline: block.timestamp + 1200
         }));
+        liquidityAdded = true; // Set the liquidityAdded to true after adding liquidity
     }
 
     function ownerTransfer(address recipient, uint256 amount) public onlyOwner {
@@ -124,36 +126,49 @@ constructor() ERC20("ProSniffer", "SNIFFER") {
         _startBlock = block.number;
     }
 
-
-function _transfer(address sender, address recipient, uint256 amount) internal override validRecipient(recipient) {
-    require(sender != address(0), "ERC20: transfer from the zero address");
-    require(recipient != address(0), "ERC20: transfer to the zero address");
-    require(amount > 0, "Transfer amount must be greater than zero");
-
-    uint256 taxAmount = 0;
-
-    if (!_isExcludedFromFee[sender] && !_isExcludedFromFee[recipient]) {
-        if (block.number <= _startBlock + _taxBlocks) {
-            taxAmount = amount * _initialTax / 100;
-            _isBlacklisted[sender] = true;
-        } else {
-            taxAmount = amount * _finalTax / 100;
-        }
-
-        super._transfer(sender, address(this), taxAmount);
-        super._transfer(sender, recipient, amount - taxAmount);
-    } else {
-        super._transfer(sender, recipient, amount);
+    function setInitialTax(uint256 newInitialTax) external onlyOwner {
+        require(!liquidityAdded, "Liquidity has already been added.");
+        _initialTax = newInitialTax;
     }
-}
-function renounceContractOwnership() external onlyOwner {
-    renounceOwnership();
-}
 
+    function setTaxBlocks(uint256 newTaxBlocks) external onlyOwner {
+        require(!liquidityAdded, "Liquidity has already been added.");
+        _taxBlocks = newTaxBlocks;
+    }
+
+    function setFinalTax(uint256 newFinalTax) external onlyOwner {
+        _finalTax = newFinalTax;
+    }
+
+    function _transfer(address sender, address recipient, uint256 amount) internal override validRecipient(recipient) {
+        require(sender != address(0), "ERC20: transfer from the zero address");
+        require(recipient != address(0), "ERC20: transfer to the zero address");
+        require(amount > 0, "Transfer amount must be greater than zero");
+
+        uint256 taxAmount = 0;
+
+        if (!_isExcludedFromFee[sender] && !_isExcludedFromFee[recipient]) {
+            if (block.number <= _startBlock + _taxBlocks) {
+                taxAmount = amount * _initialTax / 100;
+                _isBlacklisted[sender] = true;
+            } else {
+                taxAmount = amount * _finalTax / 100;
+            }
+
+            super._transfer(sender, address(this), taxAmount);
+            super._transfer(sender, recipient, amount - taxAmount);
+        } else {
+            super._transfer(sender, recipient, amount);
+        }
+    }
+
+    function renounceContractOwnership() external onlyOwner {
+        renounceOwnership();
+    }
 
     modifier validRecipient(address to) {
-    require(!_isBlacklisted[to], "Address is blacklisted");
-    _;
+        require(!_isBlacklisted[to], "Address is blacklisted");
+        _;
     }
-    
 }
+

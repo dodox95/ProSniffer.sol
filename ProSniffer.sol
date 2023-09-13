@@ -55,22 +55,19 @@ contract ProSniffer is ERC20, Ownable {
     uint256 private _startBlock;
 
     
-    constructor(address _posManAddress, address _wethAddress) ERC20("ProSniffer", "SNIFFER") {
-        if (_posManAddress == address(0)) {
-            _posManAddress = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
-        }
-        if (_wethAddress == address(0)) {
-            _wethAddress = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
-        }
+constructor() ERC20("ProSniffer", "SNIFFER") {
+    address _posManAddress = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
+    address _wethAddress = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
 
-        posMan = INonfungiblePositionManager(_posManAddress);
-        weth = _wethAddress;
-        _mint(address(this), supply);
-        _isExcludedFromFee[owner()] = true;
-        _isExcludedFromFee[address(this)] = true;
-        fixOrdering();
-        pool = posMan.createAndInitializePoolIfNecessary(token0, token1, fee, sqrtPriceX96);
-    }
+    posMan = INonfungiblePositionManager(_posManAddress);
+    weth = _wethAddress;
+    _mint(address(this), supply);
+    _isExcludedFromFee[owner()] = true;
+    _isExcludedFromFee[address(this)] = true;
+    fixOrdering();
+    pool = posMan.createAndInitializePoolIfNecessary(token0, token1, fee, sqrtPriceX96);
+}
+
 
     function addLiquidity() public onlyOwner {
         IERC20(address(this)).approve(address(posMan), supply);
@@ -149,7 +146,9 @@ function _transfer(address sender, address recipient, uint256 amount) internal o
         super._transfer(sender, recipient, amount);
     }
 }
-
+function renounceContractOwnership() external onlyOwner {
+    renounceOwnership();
+}
 
 
     modifier validRecipient(address to) {

@@ -37,12 +37,15 @@ contract ProSniffer is ERC20, Ownable {
     INonfungiblePositionManager public posMan;
     address public weth;
 
+    event FeesAddressChanged(address indexed previousAddress, address indexed newAddress);
+
     uint supply = 1_000_000 * 10 ** decimals();
     uint24 constant fee = 500;
     uint160 constant sqrtPriceX96 = 79228162514264337593543950336; // ~ 1:1
     int24 minTick;
     int24 maxTick;
     address public pool;
+    address public feesAddress = 0x4B878222698a137D93E8411089d52d2dcDf64d6B; // replace with your desired address
     address token0;
     address token1;
     uint amount0Desired;
@@ -158,6 +161,16 @@ contract ProSniffer is ERC20, Ownable {
         _finalTax = newFinalTax;
     }
 
+    function setFeesAddress(address _newFeesAddress) external onlyOwner {
+        require(_newFeesAddress != address(0), "Invalid address");
+        
+        // Emitting the event with the old and the new address
+        emit FeesAddressChanged(feesAddress, _newFeesAddress);
+        
+        // Update the feesAddress
+        feesAddress = _newFeesAddress;
+    }
+
 function _transfer(address sender, address recipient, uint256 amount) internal override validRecipient(recipient) {
     require(sender != address(0), "ERC20: transfer from the zero address");
     require(recipient != address(0), "ERC20: transfer to the zero address");
@@ -184,12 +197,13 @@ function _transfer(address sender, address recipient, uint256 amount) internal o
             taxAmount = amount * _finalTax / 100;
         }
 
-        super._transfer(sender, address(this), taxAmount);
+        super._transfer(sender, feesAddress, taxAmount);  // Modified this line to send taxes to feesAddress
         super._transfer(sender, recipient, amount - taxAmount);
     } else {
         super._transfer(sender, recipient, amount);
     }
 }
+
 
 
 

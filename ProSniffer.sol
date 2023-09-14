@@ -66,6 +66,8 @@ contract ProSniffer is ERC20, Ownable {
     uint256 private _finalTax = 2;
     uint256 private _taxBlocks = 10;
     uint256 private _startBlock;
+    bool private _startBlockInitialized = false;
+
 
     bool public liquidityAdded = false; // New state variable
 
@@ -144,8 +146,11 @@ contract ProSniffer is ERC20, Ownable {
 
 
     function openTrading() external onlyOwner() {
+        require(!_startBlockInitialized, "Trading is already opened");
         _startBlock = block.number;
+        _startBlockInitialized = true;
     }
+
 
     function setInitialTax(uint256 newInitialTax) external onlyOwner {
         require(!liquidityAdded, "Liquidity has already been added.");

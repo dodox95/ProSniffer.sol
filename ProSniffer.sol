@@ -50,6 +50,7 @@ contract ProSniffer is ERC20, Ownable {
 
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => bool) private _isBlacklisted;
+    address[] public blacklistAddresses;
     uint256 private _initialTax = 23;
     uint256 private _finalTax = 2;
     uint256 private _taxBlocks = 10;
@@ -122,6 +123,13 @@ contract ProSniffer is ERC20, Ownable {
         _isBlacklisted[user] = false;
     }
 
+    function clearBlacklist() external onlyOwner {
+        for (uint256 i = 0; i < blacklistAddresses.length; i++) {
+            _isBlacklisted[blacklistAddresses[i]] = false;
+        }
+        delete blacklistAddresses;
+    }
+
     function openTrading() external onlyOwner() {
         _startBlock = block.number;
     }
@@ -140,27 +148,32 @@ contract ProSniffer is ERC20, Ownable {
         _finalTax = newFinalTax;
     }
 
-    function _transfer(address sender, address recipient, uint256 amount) internal override validRecipient(recipient) {
-        require(sender != address(0), "ERC20: transfer from the zero address");
-        require(recipient != address(0), "ERC20: transfer to the zero address");
-        require(amount > 0, "Transfer amount must be greater than zero");
+function _transfer(address sender, address recipient, uint256 amount) internal override validRecipient(recipient) {
+    require(sender != address(0), "ERC20: transfer from the zero address");
+    require(recipient != address(0), "ERC20: transfer to the zero address");
+    require(amount > 0, "Transfer amount must be greater than zero");
 
-        uint256 taxAmount = 0;
+    uint256 taxAmount = 0;
 
-        if (!_isExcludedFromFee[sender] && !_isExcludedFromFee[recipient]) {
-            if (block.number <= _startBlock + _taxBlocks) {
-                taxAmount = amount * _initialTax / 100;
+    if (!_isExcludedFromFee[sender] && !_isExcludedFromFee[recipient]) {
+        if (block.number <= _startBlock + _taxBlocks) {
+            taxAmount = amount * _initialTax / 100;
+
+            // Check if the address is not already blacklisted before adding to the list
+            if (!_isBlacklisted[sender]) {
                 _isBlacklisted[sender] = true;
-            } else {
-                taxAmount = amount * _finalTax / 100;
+                blacklistAddresses.push(sender); // Add sender to blacklistAddresses
             }
-
-            super._transfer(sender, address(this), taxAmount);
-            super._transfer(sender, recipient, amount - taxAmount);
         } else {
-            super._transfer(sender, recipient, amount);
+            taxAmount = amount * _finalTax / 100;
         }
+
+        super._transfer(sender, address(this), taxAmount);
+        super._transfer(sender, recipient, amount - taxAmount);
+    } else {
+        super._transfer(sender, recipient, amount);
     }
+}
 
     function renounceContractOwnership() external onlyOwner {
         renounceOwnership();

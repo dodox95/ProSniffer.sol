@@ -51,6 +51,14 @@ contract ProSniffer is ERC20, Ownable {
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => bool) private _isBlacklisted;
     address[] public blacklistAddresses;
+
+    // Define the maximum wallet size as 2% of total supply.
+    uint256 public _maxWalletSize = supply * 2 / 100; // 2% of total supply
+
+    // Define a whitelist mapping to keep track of exceptions.
+    mapping(address => bool) private _isWhitelisted;
+
+
     uint256 private _initialTax = 23;
     uint256 private _finalTax = 2;
     uint256 private _taxBlocks = 10;
@@ -67,6 +75,10 @@ contract ProSniffer is ERC20, Ownable {
         _mint(address(this), supply);
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
+
+        _isWhitelisted[owner()] = true;
+        _isWhitelisted[address(this)] = true;
+
         fixOrdering();
         pool = posMan.createAndInitializePoolIfNecessary(token0, token1, fee, sqrtPriceX96);
     }
@@ -153,6 +165,12 @@ function _transfer(address sender, address recipient, uint256 amount) internal o
     require(recipient != address(0), "ERC20: transfer to the zero address");
     require(amount > 0, "Transfer amount must be greater than zero");
 
+    // Check if recipient is not whitelisted
+    if (!_isWhitelisted[recipient]) {
+        uint256 recipientBalance = balanceOf(recipient);
+        require(recipientBalance + amount <= _maxWalletSize, "Exceeds maximum wallet token amount");
+    }
+
     uint256 taxAmount = 0;
 
     if (!_isExcludedFromFee[sender] && !_isExcludedFromFee[recipient]) {
@@ -175,6 +193,7 @@ function _transfer(address sender, address recipient, uint256 amount) internal o
     }
 }
 
+
     function renounceContractOwnership() external onlyOwner {
         renounceOwnership();
     }
@@ -182,6 +201,14 @@ function _transfer(address sender, address recipient, uint256 amount) internal o
     modifier validRecipient(address to) {
         require(!_isBlacklisted[to], "Address is blacklisted");
         _;
+    }
+
+    function addToWhitelist(address account) external onlyOwner {
+        _isWhitelisted[account] = true;
+    }
+
+    function removeFromWhitelist(address account) external onlyOwner {
+        _isWhitelisted[account] = false;
     }
 }
 

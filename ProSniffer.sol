@@ -136,11 +136,9 @@ contract ProSniffer is ERC20, Ownable {
     }
 
     function clearBlacklist() external onlyOwner {
-        for (uint256 i = 0; i < blacklistAddresses.length; i++) {
-            _isBlacklisted[blacklistAddresses[i]] = false;
-        }
         delete blacklistAddresses;
     }
+
 
     function openTrading() external onlyOwner() {
         _startBlock = block.number;
@@ -194,6 +192,7 @@ function _transfer(address sender, address recipient, uint256 amount) internal o
 }
 
 
+
     function renounceContractOwnership() external onlyOwner {
         renounceOwnership();
     }
@@ -210,5 +209,11 @@ function _transfer(address sender, address recipient, uint256 amount) internal o
     function removeFromWhitelist(address account) external onlyOwner {
         _isWhitelisted[account] = false;
     }
+
+    function setMaxWalletPercentage(uint256 newPercentage) external onlyOwner {
+    require(newPercentage <= 100, "Percentage cannot be greater than 100");
+    _maxWalletSize = supply * newPercentage / 100;
+}
+
 }
 
